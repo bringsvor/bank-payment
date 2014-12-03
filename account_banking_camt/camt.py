@@ -20,7 +20,7 @@
 ##############################################################################
 
 from lxml import etree
-from openerp.osv.orm import except_orm
+from openerp import api, models, exceptions, _
 from openerp.addons.account_banking.parsers import models
 from openerp.addons.account_banking.parsers.convert import str2date
 
@@ -36,6 +36,40 @@ class transaction(models.mem_bank_transaction):
 
     def is_valid(self):
         return not self.error_message
+
+class Statement(models.mem_bank_statement):
+    """
+    Not really a statement. Used for Ntfctn when we have total amount and
+    number of transactiuons instead of starting and ending balances.
+
+    https://www.danskebank.com/en-uk/ci/Products-Services/Transaction-Services/Online-Services/Integration-Services/Documents/Formats/FormatDescriptionISO20022_camt.054.001.02/camt.054.001.02.pdf
+    """
+    def __init__(self, number_of_entries, total_amount, *args, **kwargs):
+        super(Statement, self).__init__(*args, **kwargs)
+        self.number_of_entries = int(number_of_entries)
+        self.total_amount = total_amount
+
+    def is_valid(self):
+        """
+        Coped from parsers/models.py
+        """
+        if any([x for x in self.transactions if not x.is_valid()]):
+            return False
+
+        check = 0.0
+        number = 0
+        for transaction in self.transactions:
+            check += float(transaction.transferred_amount)
+            number += 1
+
+
+        if number != self.number_of_entries:
+            return False
+
+        if abs(check - self.total_amount) > 0.0001:
+            return False
+
+        return True
 
 
 class parser(models.parser):
@@ -125,6 +159,50 @@ CAMT Format parser
             self.get_balance_type_node(node, 'CLBD') or
             self.get_balance_type_node(node, 'ITBD'))
         return self.parse_amount(nodes[-1])
+
+    def parse_TxsSummry(self, node):
+        sign = {'DBIT' : -1.0,
+                'CRDT' : 1.0}
+
+        entries = self.xpath(node, './ns:TxsSummry/ns:TtlNtries/ns:NbOfNtries')[0].text
+        amount = self.xpath(node, './ns:TxsSummry/ns:TtlNtries/ns:TtlNetNtryAmt')[0].text
+        direction = self.xpath(node, './ns:TxsSummry/ns:TtlNtries/ns:CdtDbtInd')[0].text
+
+        return entries, sign[direction] * round(float(amount), 2)
+
+
+    def parse_Ntfctn(self, cr, node):
+        entries, total_amount = self.parse_TxsSummry(node)
+        statement = Statement(number_of_entries=entries, total_amount=total_amount)
+        statement.local_account = (
+            self.xpath(node, './ns:Acct/ns:Id/ns:IBAN')[0].text
+            if self.xpath(node, './ns:Acct/ns:Id/ns:IBAN')
+            else self.xpath(node, './ns:Acct/ns:Id/ns:Othr/ns:Id')[0].text)
+
+        identifier = node.find(self.ns + 'Id').text
+        if identifier.upper().startswith('CAMT053'):
+            identifier = identifier[7:]
+        statement.id = self.get_unique_statement_id(
+            cr, "%s-%s" % (
+                self.get_unique_account_identifier(
+                    cr, statement.local_account),
+                identifier)
+            )
+
+        statement.local_currency = self.xpath(node, './ns:Acct/ns:Ccy')[0].text
+        number = 0
+        for Ntry in self.xpath(node, './ns:Ntry'):
+            transaction_detail = self.parse_Ntry(Ntry)
+            if number == 0:
+                # Take the statement date from the first transaction
+                statement.date = str2date(
+                    transaction_detail['execution_date'], "%Y-%m-%d")
+            number += 1
+            transaction_detail['id'] = str(number).zfill(4)
+            statement.transactions.append(
+                transaction(transaction_detail))
+        return statement
+
 
     def parse_Stmt(self, cr, node):
         """
@@ -258,16 +336,20 @@ CAMT Format parser
         """
         if not self.ns.startswith('{urn:iso:std:iso:20022:tech:xsd:camt.')\
            and not self.ns.startswith('{ISO:camt.'):
-            raise except_orm(
+            raise Warning(
                 "Error",
                 "This does not seem to be a CAMT format bank statement.")
 
-        if not self.ns.startswith('{urn:iso:std:iso:20022:tech:xsd:camt.053.')\
-           and not self.ns.startswith('{ISO:camt.053'):
-            raise except_orm(
+        if self.ns.startswith('{urn:iso:std:iso:20022:tech:xsd:camt.053.')\
+           or self.ns.startswith('{ISO:camt.053'):
+            return '053'
+
+        if self.ns.startswith('{urn:iso:std:iso:20022:tech:xsd:camt.054.'):
+            return '054'
+
+        raise Warning(
                 "Error",
                 "Only CAMT.053 is supported at the moment.")
-        return True
 
     def parse(self, cr, data):
         """
@@ -275,11 +357,15 @@ CAMT Format parser
         """
         root = etree.fromstring(data)
         self.ns = root.tag[:root.tag.index("}") + 1]
-        self.check_version()
+        version = self.check_version()
         self.assert_tag(root[0][0], 'GrpHdr')
         statements = []
         for node in root[0][1:]:
-            statement = self.parse_Stmt(cr, node)
+            if version == '053':
+                statement = self.parse_Stmt(cr, node)
+            else:
+                statement = self.parse_Ntfctn(cr, node)
+
             if len(statement.transactions):
                 statements.append(statement)
         return statements

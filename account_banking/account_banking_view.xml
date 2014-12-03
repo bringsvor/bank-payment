@@ -41,6 +41,7 @@
             <field name="model">account.banking.account.settings</field>
             <field name="arch" type="xml">
                 <form string="Default Import Settings for Bank Account">
+                    <group>
                     <field name="company_id"
                            widget='selection'
                            groups="base.group_multi_company"
@@ -48,8 +49,9 @@
                     <separator string="Bank Account Details" colspan="4" />
                     <field name="partner_id" invisible="1"/>
                     <field name="partner_bank_id"
-                           domain="[('partner_id', '=', partner_id)]"
+                           domain="[('company_id', '=', company_id)]"
                            on_change="onchange_partner_bank_id(partner_bank_id)" />
+                        <!-- TODO Is partner_id really used these days? domain="[('partner_id', '=', partner_id)]" -->
                     <field name="journal_id"
                            domain="[('type','=','bank'),
                                     ('company_id', '=', company_id)]" />
@@ -66,6 +68,7 @@
                     <field name="invoice_journal_id"
                            attrs="{'required': [('bank_partner_id', '!=', False)]}"
                            domain="[('company_id', '=', company_id)]" />
+                    </group>
                 </form>
             </field>
         </record>
@@ -215,10 +218,11 @@
                         <attribute name="required">1</attribute>
                     </xpath>
 
+                    <!-- TODO
                     <xpath expr="//field[@name='line_ids']/form//field[@name='name']"
                            position="attributes">
                         <attribute name="required">1</attribute>
-                    </xpath>
+                    </xpath> -->
 
                     <!-- Add invisible field for identification of import file
                          on bank statements
@@ -244,14 +248,16 @@
                         <!-- TODO set partner_id when partner_bank_id changes -->
                         <field name="partner_bank_id"/>
                     </xpath>
+                    <!-- TODO
                     <xpath expr="//field[@name='line_ids']/form//field[@name='partner_id']"
                            position="after">
                         <field name="partner_bank_id"/>
-                    </xpath>
+                    </xpath> -->
+                    <!-- TODO
                     <xpath expr="//field[@name='line_ids']/tree//field[@name='account_id']"
                            position="attributes">
                        <attribute name="attrs">{'readonly': ['|', ('state', '!=', 'draft'), ('match_type', '!=', False)]}</attribute>
-                    </xpath>
+                    </xpath> -->
                     <xpath expr="//field[@name='line_ids']/tree/field[@name='amount']"
                            position="after">
                         <field name="match_type"/>
@@ -278,13 +284,13 @@
                         <field name="invoice_id"/>
                         <field name="reconcile_id"/>
                     </xpath>
-
+                    <!-- TODO
                     <xpath expr="//field[@name='line_ids']/form//field[@name='amount']"
                            position="after">
                         <field name="state"/>
                         <field name="invoice_id"/>
                         <field name="reconcile_id"/>
-                    </xpath>
+                    </xpath> -->
                 </data>
             </field>
         </record>
@@ -308,11 +314,11 @@
                             />
                     <!-- TODO set partner_id when partner_bank_id changes -->
                     <field name="partner_bank_id"/>
-                    <field name="type" on_change="onchange_type(partner_id, type)"/>
+                    <!-- TODO <field name="type" on_change="onchange_type(partner_id, type)"/> -->
                     <!-- TODO note the references to parent from the statement form view -->
                     <field domain="[('journal_id','=',parent.journal_id)]"
                         attrs="{'readonly': ['|', ('state', '!=', 'draft'), ('match_type', '!=', '')]}" name="account_id"/>
-                    <field name="analytic_account_id" groups="analytic.group_analytic_accounting" domain="[('company_id', '=', parent.company_id), ('type', '&lt;&gt;', 'view')]"/>
+                    <!--TODO <field name="analytic_account_id" groups="analytic.group_analytic_accounting" domain="[('company_id', '=', parent.company_id), ('type', '&lt;&gt;', 'view')]"/> -->
                     <field name="amount"/>
                     <field name="match_type"/>
                     <field name="residual"/>
@@ -353,7 +359,7 @@
                         <filter string="Confirmed" domain="[('state','=','confirmed')]" icon="terp-dialog-close"/>
                         <separator orientation="vertical"/>
                         <field name="ref"/>
-                        <field name="type"/>
+                        <!-- TODO <field name="type"/> -->
                         <field name="period_id"/>
                     </group>
                     <newline/>

@@ -827,7 +827,7 @@ class banking_import_transaction(orm.Model):
         """
         return False
 
-    def match(self, cr, uid, ids, results=None, context=None):
+    def match(self, cr, uid, ids, results=None, company=None, context=None):
         if not ids:
             return True
 
@@ -902,8 +902,9 @@ class banking_import_transaction(orm.Model):
             # and perform the stanza below only once per company.
             # In that case, take newest transaction date into account
             # when retrieving move_line_ids below.
-            company = company_obj.browse(
-                cr, uid, transaction.company_id.id, context)
+            if not company:
+                company = company_obj.browse(
+                    cr, uid, transaction.company_id.id, context)
 
             # Get interesting journals once
             # Added type 'general' to capture fund transfers

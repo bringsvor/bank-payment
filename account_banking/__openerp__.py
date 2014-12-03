@@ -100,6 +100,6 @@
       + No special configuration needed for the parsers, new parsers are
         recognized and made available at server (re)start.
     ''',
-    'installable': False,
+    'installable': True,
     'auto_install': False,
 }

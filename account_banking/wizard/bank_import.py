@@ -331,7 +331,7 @@ class banking_import(orm.TransientModel):
             results.stat_loaded_cnt += 1
 
         import_transaction_obj.match(
-            cr, uid, transaction_ids, results=results, context=context
+            cr, uid, transaction_ids, results=results, company=company, context=context
         )
 
         # recompute statement end_balance for validation

@@ -149,7 +149,9 @@ def get_company_bank_account(pool, cr, uid, account_number, currency,
               '%(account_no)s') % dict(account_no=account_number)
         )
         return False
-    if bank_accounts[0].partner_id.id != company.partner_id.id:
+    # Is the partner_id field of res_partner_bank really used these days?
+    # # if bank_accounts[0].partner_id.id != company.partner_id.id:
+    if bank_accounts[0].company_id != company:
         log.append(
             _('Account %(account_no)s is not owned by %(partner)s')
             % dict(account_no=account_number,
